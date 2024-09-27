@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/monitorism/op-monitorism/liveness_expiration"
 	"github.com/ethereum-optimism/monitorism/op-monitorism/multisig"
 	"github.com/ethereum-optimism/monitorism/op-monitorism/secrets"
+	"github.com/ethereum-optimism/monitorism/op-monitorism/tipmon"
 	"github.com/ethereum-optimism/monitorism/op-monitorism/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -90,6 +91,13 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Description: "Monitor the liveness expiration on Gnosis Safe.",
 				Flags:       append(liveness_expiration.CLIFlags("LIVENESS_EXPIRATION_MON"), defaultFlags...),
 				Action:      cliapp.LifecycleCmd(LivenessExpirationMain),
+			},
+			{
+				Name:        "tipmon",
+				Usage:       "Monitor the delay of the tip block compared to real time.",
+				Description: "Monitor the delay of the tip block compared to real time.",
+				Flags:       append(tipmon.CLIFlags("TIP_MON"), defaultFlags...),
+				Action:      cliapp.LifecycleCmd(TipMonMain),
 			},
 			{
 				Name:        "version",
@@ -225,6 +233,22 @@ func SecretsMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lif
 	monitor, err := secrets.NewMonitor(ctx.Context, log, opmetrics.With(metricsRegistry), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create secrets monitor: %w", err)
+	}
+
+	return monitorism.NewCliApp(ctx, log, metricsRegistry, monitor)
+}
+
+func TipMonMain(ctx *cli.Context, closeApp context.CancelCauseFunc) (cliapp.Lifecycle, error) {
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx))
+	cfg, err := tipmon.ReadCLIFlags(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse TipMon config from flags: %w", err)
+	}
+
+	metricsRegistry := opmetrics.NewRegistry()
+	monitor, err := tipmon.NewMonitor(ctx.Context, log, opmetrics.With(metricsRegistry), cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TipMon monitor: %w", err)
 	}
 
 	return monitorism.NewCliApp(ctx, log, metricsRegistry, monitor)
